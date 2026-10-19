@@ -24,4 +24,4 @@ jobs:
         with:
           python-version: '3.12'
       - name: Build and test
-        run: ./test.sh
+        run: bash ./test.sh
