@@ -471,7 +471,7 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 }
 
-let apiKey = '';
+let apiKey = sessionStorage.getItem('vectorvault_api_key') || '';
 let apiKeyPromptPromise = null;
 
 async function requestJson(path, options = {}) {
@@ -485,7 +485,12 @@ async function requestJson(path, options = {}) {
     // Share one prompt across the parallel requests fired during page startup.
     if (!apiKeyPromptPromise) {
       apiKeyPromptPromise = Promise.resolve(window.prompt('This VectorVault deployment is protected. Enter its API key to continue.'))
-        .then(value => { apiKey = (value || '').trim(); return apiKey; })
+        .then(value => {
+  apiKey = (value || '').trim();
+  if (apiKey) sessionStorage.setItem('vectorvault_api_key', apiKey);
+  else sessionStorage.removeItem('vectorvault_api_key');
+  return apiKey;
+})
         .finally(() => { apiKeyPromptPromise = null; });
     }
     const entered = await apiKeyPromptPromise;
