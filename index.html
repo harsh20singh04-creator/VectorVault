@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#090d17">
+<meta name="description" content="VectorVault is a Java vector database and retrieval-augmented generation lab with Brute Force, KD-tree, HNSW, Ollama embeddings, and measurable search benchmarks.">
+<title>VectorVault — Semantic Search & RAG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:     #07070f;
+  --card:   #0c0c18;
+  --border: #151528;
+  --cs:     #00d9ff;
+  --math:   #b388ff;
+  --food:   #ffb74d;
+  --sports: #69f0ae;
+  --accent: #6c63ff;
+  --text:   #cdd6f4;
+  --muted:  #4a4a6a;
+  --red:    #f38ba8;
+  --green:  #a6e3a1;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Fira Code', 'Courier New', monospace;
+  height: 100vh; overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--card); border-bottom: 1px solid var(--border);
+  padding: 12px 20px; display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+header h1 {
+  font-size: 17px; font-weight: 600; letter-spacing: 4px;
+  background: linear-gradient(90deg, var(--cs), var(--accent), var(--math));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.brand { display:flex; align-items:center; gap:12px; min-width:260px; }
+.brand-mark{width:34px;height:34px;flex:0 0 34px;display:block;filter:drop-shadow(0 0 8px rgba(0,217,255,.18))}.brand-copy{display:flex;flex-direction:column;gap:3px}.brand-copy h1{margin:0}.brand-copy span{display:block}
+.brand span { font-size:9px; letter-spacing:1.2px; color:var(--muted); text-transform:uppercase; white-space:nowrap; }
+.badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; letter-spacing: 1px; border: 1px solid var(--border); color: var(--muted); }
+.badge.hl { border-color: var(--accent); color: var(--accent); background: rgba(108,99,255,.12); }
+.badge.ok { border-color: var(--green); color: var(--green); background: rgba(166,227,161,.1); }
+.badge.err { border-color: var(--red); color: var(--red); background: rgba(243,139,168,.1); }
+#statsLabel { margin-left: auto; font-size: 10px; color: var(--muted); letter-spacing:.4px; }
+
+/* ── LAYOUT ── */
+.layout { display: flex; flex: 1; overflow: hidden; }
+.left-panel { width: 260px; flex-shrink: 0; background: var(--card); border-right: 1px solid var(--border); overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 18px; }
+.center-panel { flex: 1; position: relative; overflow: hidden; }
+#scatter { display: block; width: 100%; height: 100%; }
+.right-panel { width: 360px; flex-shrink: 0; background: var(--card); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── TABS ── */
+.tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.tab { flex: 1; padding: 10px 6px; text-align: center; font-size: 10px; letter-spacing: 1px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; transition: all .2s; }
+.tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-content { display: none; flex: 1; overflow-y: auto; padding: 16px; flex-direction: column; gap: 16px; }
+.tab-content.on { display: flex; }
+
+/* ── COMMON COMPONENTS ── */
+.sec { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+input[type=text], select, textarea {
+  width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  padding: 9px 11px; border-radius: 6px; font-family: inherit; font-size: 12px; outline: none; transition: border-color .2s;
+}
+input[type=text]:focus, select:focus, textarea:focus { border-color: var(--accent); }
+textarea { resize: vertical; min-height: 100px; line-height: 1.5; }
+select option { background: var(--card); }
+input[type=range] { width: 100%; accent-color: var(--accent); background: transparent; border: none; padding: 0; }
+button {
+  width: 100%; padding: 9px 14px; border: none; border-radius: 6px; cursor: pointer;
+  font-family: inherit; font-size: 12px; font-weight: 500; letter-spacing: .5px; transition: all .2s;
+}
+.btn-p { background: linear-gradient(135deg, var(--accent), #4f46e5); color: #fff; box-shadow: 0 0 18px rgba(108,99,255,.3); }
+.btn-p:hover { box-shadow: 0 0 28px rgba(108,99,255,.55); transform: translateY(-1px); }
+.btn-p:disabled { opacity: .5; transform: none; cursor: wait; }
+.btn-s { background: var(--border); color: var(--text); }
+.btn-s:hover { background: #1c1c35; }
+.btn-s:disabled { opacity: .5; cursor: wait; }
+.btn-g { background: rgba(166,227,161,.12); color: var(--green); border: 1px solid rgba(166,227,161,.3); }
+.btn-g:hover { background: rgba(166,227,161,.22); }
+.btn-g:disabled { opacity: .5; cursor: wait; }
+
+.algo-row { display: flex; gap: 5px; }
+.algo-btn { flex: 1; padding: 7px 4px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); font-size: 10px; cursor: pointer; text-align: center; transition: all .2s; letter-spacing: .5px; font-family: inherit; }
+.algo-btn.on { border-color: var(--accent); color: var(--accent); background: rgba(108,99,255,.12); }
+
+.legend { display: flex; flex-direction: column; gap: 5px; }
+.leg-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+/* ── RESULTS ── */
+.results { display: flex; flex-direction: column; gap: 7px; }
+.rcard { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; animation: fadeUp .25s ease; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)} }
+.rcard:hover { border-color: #252545; }
+.rrank { font-size: 9px; color: var(--muted); letter-spacing: 1px; margin-bottom: 3px; }
+.rmeta { font-size: 12px; line-height: 1.4; margin-bottom: 6px; }
+.rfoot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.rcat  { font-size: 9px; padding: 2px 7px; border-radius: 8px; letter-spacing: .5px; }
+.rdist { font-size: 10px; color: var(--muted); flex: 1; text-align: right; }
+.del   { background: rgba(243,139,168,.12); color: var(--red); border: 1px solid rgba(243,139,168,.25); border-radius: 4px; cursor: pointer; font-size: 10px; padding: 2px 7px; font-family: inherit; transition: background .2s; width: auto; }
+.del:hover { background: rgba(243,139,168,.25); }
+
+/* ── LATENCY / BENCH / LAYERS ── */
+.lat-big { font-size: 32px; font-weight: 600; color: var(--cs); text-shadow: 0 0 20px rgba(0,217,255,.4); }
+.lat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.bench { display: flex; flex-direction: column; gap: 9px; }
+.brow  { display: flex; flex-direction: column; gap: 3px; }
+.blabel { display: flex; justify-content: space-between; font-size: 10px; }
+.btrack { height: 7px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.bfill  { height: 100%; border-radius: 4px; transition: width .5s ease; }
+.layers { display: flex; flex-direction: column; gap: 5px; }
+.lrow   { display: flex; align-items: center; gap: 7px; font-size: 10px; }
+.lnum   { width: 18px; text-align: right; color: var(--accent); }
+.ltrack { flex: 1; height: 5px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.lfill  { height: 100%; background: var(--accent); border-radius: 3px; opacity: .7; transition: width .4s; }
+.lcount { width: 80px; text-align: right; color: var(--muted); }
+#vecCvs { display: block; width: 100%; background: var(--bg); border-radius: 5px; }
+
+/* ── DOCUMENT LIST ── */
+.doc-list { display: flex; flex-direction: column; gap: 7px; }
+.dcard { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; animation: fadeUp .25s ease; }
+.dcard-title { font-size: 12px; font-weight: 500; margin-bottom: 4px; color: var(--green); }
+.dcard-preview { font-size: 10px; color: var(--muted); line-height: 1.5; margin-bottom: 6px; }
+.dcard-foot { display: flex; justify-content: space-between; align-items: center; }
+.dcard-words { font-size: 9px; color: var(--muted); }
+
+/* ── OLLAMA STATUS ── */
+.ollama-status { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 10px 12px; font-size: 11px; line-height: 1.6; }
+.ollama-status.ok { border-color: rgba(166,227,161,.3); }
+.ollama-status.err { border-color: rgba(243,139,168,.3); }
+
+/* ── CHAT ── */
+.chat-history { display: flex; flex-direction: column; gap: 12px; }
+.chat-q { background: rgba(108,99,255,.12); border: 1px solid rgba(108,99,255,.25); border-radius: 7px; padding: 10px 12px; font-size: 12px; line-height: 1.5; }
+.chat-a { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 12px; }
+.chat-a-label { font-size: 9px; letter-spacing: 2px; color: var(--green); margin-bottom: 6px; }
+.chat-a-text { font-size: 12px; line-height: 1.7; white-space: pre-wrap; }
+.chat-ctx { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.chat-ctx-label { font-size: 9px; letter-spacing: 1px; color: var(--muted); margin-bottom: 6px; }
+.ctx-chip { display: inline-block; font-size: 9px; padding: 2px 7px; border-radius: 10px; margin: 2px; background: rgba(108,99,255,.1); border: 1px solid rgba(108,99,255,.2); color: var(--accent); cursor: pointer; }
+.ctx-chip:hover { background: rgba(108,99,255,.2); }
+.ctx-expand { display: none; font-size: 10px; color: var(--muted); line-height: 1.5; margin-top: 6px; padding: 8px; background: #0a0a18; border-radius: 5px; }
+.thinking { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.typing::after { content: '▋'; animation: blink 1s step-end infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── TOOLTIP ── */
+#tip { position: fixed; display: none; background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 7px 11px; font-size: 11px; pointer-events: none; max-width: 220px; z-index: 200; line-height: 1.5; }
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* ── PRODUCT POLISH / RESPONSIVE LAYOUT ── */
+:root {
+  --bg: #090d17;
+  --card: #0e1523;
+  --border: #202b40;
+  --accent: #8b7cff;
+  --text: #e5ebf7;
+  --muted: #8290a9;
+  --cs: #46d8ef;
+  --math: #b8a2ff;
+  --food: #ffbf69;
+  --sports: #5ee5a4;
+  --red: #ff8a9b;
+  --green: #72e2b0;
+}
+body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: radial-gradient(ellipse at 48% -25%, #19213b 0%, var(--bg) 52%); }
+header { min-height: 68px; padding: 12px 18px; gap: 9px; background: rgba(14,21,35,.94); border-bottom-color: #27334a; }
+header h1 { font-size: 16px; letter-spacing: 3px; }
+.brand { min-width: 270px; gap: 10px; }
+.brand span { color: #8290a9; font-size: 10px; letter-spacing: .8px; }
+.badge { letter-spacing: .5px; font-size: 10px; border-radius: 7px; padding: 4px 8px; }
+#statsLabel { font-family: 'Fira Code', monospace; font-size: 10px; color: #a7b4ca; }
+.layout { gap: 12px; padding: 12px; min-height: 0; }
+.left-panel, .right-panel { background: rgba(14,21,35,.94); border: 1px solid #253149; border-radius: 14px; box-shadow: 0 12px 38px rgba(0,0,0,.16); }
+.left-panel { width: 248px; padding: 17px 14px; gap: 21px; }
+.center-panel { border: 1px solid rgba(37,49,73,.8); border-radius: 14px; background-color: rgba(12,18,31,.5); background-image: linear-gradient(rgba(112,133,169,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(112,133,169,.045) 1px, transparent 1px); background-size: 28px 28px; }
+.right-panel { width: 370px; border-radius: 14px; }
+.tabs { border-bottom-color: #263249; padding: 4px 6px 0; }
+.tab { padding: 12px 6px; font-size: 10px; font-weight: 700; letter-spacing: .8px; }
+.tab-content { padding: 17px; gap: 20px; }
+.sec { color: #93a2ba; font-size: 10px; font-weight: 700; letter-spacing: 1.35px; margin-bottom: 9px; }
+input[type=text], select, textarea { background: #0a101c; border-color: #293650; color: #e5ebf7; border-radius: 8px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 12px; padding: 10px 11px; }
+input[type=text]:focus, select:focus, textarea:focus { border-color: #8b7cff; box-shadow: 0 0 0 3px rgba(139,124,255,.11); }
+button { border-radius: 8px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 12px; padding: 10px 12px; }
+.btn-p { background: linear-gradient(135deg, #8b7cff, #6656ed); box-shadow: 0 7px 20px rgba(108,89,239,.19); }
+.btn-p:hover { box-shadow: 0 9px 26px rgba(108,89,239,.28); }
+.btn-s { border: 1px solid #293650; background: #151e30; }
+.btn-s:hover { background: #1c2940; }
+.btn-g { background: rgba(114,226,176,.08); border-color: rgba(114,226,176,.28); }
+.algo-btn { border-color: #293650; border-radius: 8px; padding: 9px 4px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 10px; font-weight: 700; }
+.algo-btn.on { border-color: #8b7cff; color: #c7c0ff; background: rgba(139,124,255,.13); }
+.rcard, .dcard, .chat-a { background: #0a101c; border-color: #253149; border-radius: 9px; }
+.rcard { padding: 12px; }
+.rmeta, .dcard-title, .chat-q, .chat-a-text { overflow-wrap: anywhere; }
+.rmeta { font-size: 12px; line-height: 1.55; }
+.lat-big { font-family: 'Fira Code', monospace; font-size: 34px; }
+.lat-sub { line-height: 1.6; }
+.hint { color: var(--muted); font-size: 10px; line-height: 1.55; margin-top: 7px; }
+.inline-status { min-height: 16px; color: var(--muted); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.metric-grid select { min-width: 0; }
+.doc-list, .results, .chat-history { min-width: 0; }
+button:focus-visible, .tab:focus-visible, .algo-btn:focus-visible { outline: 2px solid #a99fff; outline-offset: 2px; }
+@media (max-width: 1180px) {
+  .left-panel { width: 224px; }
+  .right-panel { width: 340px; }
+  .brand { min-width: 240px; }
+  header .badge:not(#ollamaBadge) { display: none; }
+}
+@media (max-width: 900px) {
+  body { height: auto; min-height: 100dvh; overflow: auto; }
+  header { flex-wrap: wrap; }
+  .layout { display: flex; flex-direction: column; overflow: visible; }
+  .left-panel { width: 100%; overflow: visible; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .center-panel { flex: none; height: 390px; min-height: 300px; }
+  .right-panel { width: 100%; min-height: 620px; overflow: visible; }
+  .tab-content { overflow: visible; }
+}
+@media (max-width: 560px) {
+  header { padding: 12px; gap: 8px; }
+  .brand { width: 100%; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; }
+  .brand span { white-space: normal; }
+  #statsLabel { margin-left: 0; }
+  .layout { padding: 8px; gap: 9px; }
+  .left-panel { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+  .center-panel { height: 320px; }
+  .right-panel { min-height: 550px; }
+  .tab-content { padding: 13px; }
+}
+</style>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 48 48%22%3E%3Crect width=%2248%22 height=%2248%22 rx=%2211%22 fill=%22%230b1220%22/%3E%3Cpath d=%22M24 5 40 14 40 33 24 43 8 33 8 14Z%22 fill=%22none%22 stroke=%22%2300d9ff%22 stroke-width=%223%22/%3E%3Cpath d=%22M8 14 24 24 40 14M24 24V43%22 fill=%22none%22 stroke=%22%23927aff%22 stroke-width=%223%22/%3E%3Ccircle cx=%2224%22 cy=%2224%22 r=%223%22 fill=%22white%22/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header>
+  <div class="brand"><svg class="brand-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VectorVault logo">
+  <defs>
+    <linearGradient id="vvPremium" x1="5%" y1="0%" x2="95%" y2="100%">
+      <stop offset="0%" stop-color="#55f3ff"/>
+      <stop offset="52%" stop-color="#00b8ff"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <linearGradient id="vvFace" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00d9ff" stop-opacity=".20"/>
+      <stop offset="100%" stop-color="#9270ff" stop-opacity=".06"/>
+    </linearGradient>
+  </defs>
+  <g stroke="url(#vvPremium)" stroke-width="1.65" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M24 3.8 41 13.5 41 33 24 43 7 33 7 13.5Z" fill="url(#vvFace)"/>
+    <path d="M7 13.5 24 23.5 41 13.5M24 23.5V43" fill="none"/>
+    <path d="M15.5 8.7 32.5 18.5V38M32.5 8.7 15.5 18.5V38" fill="none" opacity=".65"/>
+    <path d="M14 17.5 20.5 29 27 17.5 34 29" fill="none" stroke-width="2.2"/>
+  </g>
+  <g fill="#e0fbff" stroke="#00d9ff" stroke-width="1">
+    <circle cx="24" cy="23.5" r="2.5"/>
+    <circle cx="7" cy="13.5" r="1.8"/>
+    <circle cx="41" cy="13.5" r="1.8"/>
+    <circle cx="24" cy="43" r="1.8"/>
+  </g>
+</svg><div class="brand-copy"><h1>VECTORVAULT</h1><span>Semantic Search &amp; RAG Engine</span></div></div>
+  <span class="badge hl">HNSW</span>
+  <span class="badge">KD-TREE</span>
+  <span class="badge">BRUTE FORCE</span>
+  <span class="badge" id="ollamaBadge">OLLAMA…</span>
+  <span id="statsLabel">loading…</span>
+</header>
+
+<div class="layout">
+
+  <!-- ══ LEFT PANEL ══ -->
+  <div class="left-panel">
+    <div>
+      <div class="sec">Vector Lab · 16D Demo Space</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <input type="text" id="qInput" placeholder="Try: binary tree, sushi, basketball…" aria-label="Vector lab query" />
+        <button class="btn-p" id="searchBtn" onclick="runSearch()">⌕ RUN VECTOR SEARCH</button>
+      </div>
+      <div class="hint">Uses a deterministic 16-dimensional demo embedding to compare index behavior. Real learned embeddings power the RAG workspace.</div>
+    </div>
+    <div>
+      <div class="sec">Algorithm</div>
+      <div class="algo-row">
+        <div class="algo-btn on" data-algo="hnsw"      onclick="setAlgo(this)">HNSW</div>
+        <div class="algo-btn"   data-algo="kdtree"     onclick="setAlgo(this)">KD-TREE</div>
+        <div class="algo-btn"   data-algo="bruteforce" onclick="setAlgo(this)">BRUTE</div>
+      </div>
+    </div>
+    <div>
+      <div class="sec">Distance Metric</div>
+      <select id="metric">
+        <option value="cosine">Cosine distance (1 − similarity)</option>
+        <option value="euclidean">Euclidean distance (L2)</option>
+        <option value="manhattan">Manhattan distance (L1)</option>
+      </select>
+    </div>
+    <div>
+      <div class="sec">Top-K: <span id="kLabel">5</span></div>
+      <input type="range" id="kSlider" min="1" max="10" value="5"
+             oninput="document.getElementById('kLabel').textContent=this.value">
+    </div>
+    <div>
+      <div class="sec">Category Legend</div>
+      <div class="legend">
+        <div class="leg-row"><div class="dot" style="background:var(--cs);box-shadow:0 0 5px var(--cs)"></div>CS / Algorithms</div>
+        <div class="leg-row"><div class="dot" style="background:var(--math);box-shadow:0 0 5px var(--math)"></div>Mathematics</div>
+        <div class="leg-row"><div class="dot" style="background:var(--food);box-shadow:0 0 5px var(--food)"></div>Food &amp; Cooking</div>
+        <div class="leg-row"><div class="dot" style="background:var(--sports);box-shadow:0 0 5px var(--sports)"></div>Sports &amp; Games</div>
+        <div class="leg-row"><div class="dot" style="background:var(--green);box-shadow:0 0 5px var(--green)"></div>General / custom vectors</div>
+      </div>
+    </div>
+    <div>
+      <div class="sec">Add Vector</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+          <input type="text" id="addMeta" placeholder="Vector description…" aria-label="Vector description" />
+        <select id="addCat">
+          <option value="cs">CS / Algorithms</option>
+          <option value="math">Mathematics</option>
+          <option value="food">Food &amp; Cooking</option>
+          <option value="sports">Sports &amp; Games</option>
+          <option value="general">General / custom</option>
+        </select>
+        <button class="btn-s" onclick="addVector()">+ INSERT</button>
+      </div>
+    </div>
+    <div>
+      <div class="sec">Benchmark</div>
+      <button class="btn-s" onclick="runBenchmark()">▶ COMPARE ALL ALGOS</button>
+        <div class="hint">Latency depends on dataset size, metric and dimensionality. Check HNSW recall alongside speed.</div>
+        <div id="vectorInsertStatus" class="inline-status" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+
+  <!-- ══ CENTER: SCATTER PLOT ══ -->
+  <div class="center-panel"><canvas id="scatter"></canvas></div>
+
+  <!-- ══ RIGHT PANEL: TABS ══ -->
+  <div class="right-panel">
+    <div class="tabs">
+      <div class="tab on"  onclick="switchTab('search')">SEARCH</div>
+      <div class="tab"     onclick="switchTab('docs')">DOCUMENTS</div>
+      <div class="tab"     onclick="switchTab('rag')">ASK AI</div>
+    </div>
+
+    <!-- TAB: SEARCH -->
+    <div class="tab-content on" id="tab-search">
+      <div>
+        <div class="sec">Index Query Latency</div>
+        <div class="lat-big" id="latBig">—</div>
+        <div class="lat-sub" id="latSub">No query yet</div>
+        <div class="inline-status" id="searchStatus" role="status" aria-live="polite"></div>
+      </div>
+      <div>
+        <div class="sec">Top Matches</div>
+        <div class="results" id="results">
+          <div style="color:var(--muted);font-size:11px">Run a semantic search to see results…</div>
+        </div>
+      </div>
+      <div>
+        <div class="sec">Deterministic Query Vector · 16D</div>
+        <canvas id="vecCvs" height="76"></canvas>
+      </div>
+      <div id="benchSec" style="display:none">
+        <div class="sec">Algorithm Comparison</div>
+        <div class="bench" id="benchBars"></div>
+        <div class="hint" id="benchMeta"></div>
+      </div>
+      <div>
+        <div class="sec">HNSW Graph Layers · Cosine Index</div>
+        <div class="layers" id="layers">
+          <div style="color:var(--muted);font-size:11px">Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: DOCUMENTS -->
+    <div class="tab-content" id="tab-docs">
+      <div>
+        <div class="sec">Ollama Status</div>
+        <div class="ollama-status" id="ollamaStatus">Checking…</div>
+      </div>
+      <div>
+        <div class="sec">Index a Knowledge Source</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input type="text" id="docTitle" placeholder="Document title / topic…" />
+          <textarea id="docText" placeholder="Paste notes, articles, documentation, or knowledge to index…&#10;&#10;The backend chunks longer text with overlap and creates a real embedding for every chunk using Ollama."></textarea>
+          <button class="btn-g" id="insertDocBtn" onclick="insertDocument()">✦ EMBED &amp; INDEX SOURCE</button>
+          <div id="insertStatus" class="inline-status" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+      <div>
+        <div class="sec">Indexed Chunks (<span id="docCountLabel">0</span>)</div>
+        <div class="doc-list" id="docList">
+          <div style="color:var(--muted);font-size:11px">No documents yet. Add your first knowledge source above.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: ASK AI (RAG) -->
+    <div class="tab-content" id="tab-rag">
+      <div>
+        <div class="sec">Ask a Question</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <textarea id="ragQuestion" rows="3" placeholder="What is dynamic programming?&#10;Explain the main idea of HNSW.&#10;How does the recipe differ from…"></textarea>
+          <div style="display:flex;gap:6px">
+            <select id="ragK" style="width:auto;flex-shrink:0">
+              <option value="2">Top 2</option>
+              <option value="3" selected>Top 3</option>
+              <option value="5">Top 5</option>
+            </select>
+            <button class="btn-g" id="askBtn" onclick="askAI()" style="flex:1">✦ ASK VECTORVAULT</button>
+          </div>
+          <div class="metric-grid">
+            <select id="ragAlgo" aria-label="RAG retrieval algorithm">
+              <option value="hnsw" selected>HNSW · approximate</option>
+              <option value="kdtree">KD-tree · spatial</option>
+              <option value="bruteforce">Brute Force · exact</option>
+            </select>
+            <select id="ragMetric" aria-label="RAG distance metric">
+              <option value="cosine" selected>Cosine distance</option>
+              <option value="euclidean">Euclidean distance</option>
+              <option value="manhattan">Manhattan distance</option>
+            </select>
+          </div>
+          <div class="hint">RAG retrieval uses actual Ollama embeddings stored in a separate index, not the 16D visual demo vectors above.</div>
+        </div>
+      </div>
+      <div>
+        <div class="sec">Conversation</div>
+        <div class="chat-history" id="chatHistory">
+          <div style="color:var(--muted);font-size:11px">Ask a question about your knowledge base…</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- end right-panel -->
+</div><!-- end layout -->
+
+<div id="tip"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONSTANTS
+// ════════════════════════════════════════════════════════════
+const API  = window.location.protocol === 'file:' ? 'http://localhost:8080' : window.location.origin;
+const DIMS = 16;
+const COL  = { cs:'#46d8ef', math:'#b8a2ff', food:'#ffbf69', sports:'#5ee5a4', general:'#72e2b0', doc:'#72e2b0', default:'#90a4ae' };
+const DIM_COL = ['#00d9ff','#00d9ff','#00d9ff','#00d9ff','#b388ff','#b388ff','#b388ff','#b388ff',
+                 '#ffb74d','#ffb74d','#ffb74d','#ffb74d','#69f0ae','#69f0ae','#69f0ae','#69f0ae'];
+
+// ════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════
+let allItems = [], pcaPoints = [], hitIds = new Set(), queryPt = null;
+let hoverItem = null, pulse = 0, selAlgo = 'hnsw', searchResults = [], chatTurn = 0, lastQueryEmbedding = null, lastSearchMetric = 'cosine';
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+let apiKey = '';
+let apiKeyPromptPromise = null;
+
+async function requestJson(path, options = {}) {
+  const send = () => {
+    const headers = new Headers(options.headers || {});
+    if (apiKey) headers.set('Authorization', `Bearer ${apiKey}`);
+    return fetch(API + path, { ...options, headers });
+  };
+  let response = await send();
+  if (response.status === 401 && !apiKey) {
+    // Share one prompt across the parallel requests fired during page startup.
+    if (!apiKeyPromptPromise) {
+      apiKeyPromptPromise = Promise.resolve(window.prompt('This VectorVault deployment is protected. Enter its API key to continue.'))
+        .then(value => { apiKey = (value || '').trim(); return apiKey; })
+        .finally(() => { apiKeyPromptPromise = null; });
+    }
+    const entered = await apiKeyPromptPromise;
+    if (!entered) throw new Error('An API key is required for this VectorVault deployment.');
+    response = await send();
+  }
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.error) {
+    if (response.status === 401) throw new Error('API key rejected. Reload the page and enter the correct key.');
+    throw new Error(data.error || `Request failed (${response.status})`);
+  }
+  return data;
+}
+
+// ════════════════════════════════════════════════════════════
+//  TABS
+// ════════════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const names = ['search','docs','rag'];
+    t.classList.toggle('on', names[i] === name);
+  });
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('on'));
+  document.getElementById('tab-' + name).classList.add('on');
+  if (name === 'docs') loadDocList();
+}
+
+// ════════════════════════════════════════════════════════════
+//  TEXT → 16-D EMBEDDING (for demo vectors)
+// ════════════════════════════════════════════════════════════
+const KW = {
+  cs:     ['algorithm','data','tree','graph','array','linked','hash','stack','queue','sort','binary','dynamic','programming','recursion','complexity','pointer','node','search','insert','bfs','dfs','heap','trie'],
+  math:   ['calculus','matrix','probability','theorem','integral','derivative','linear','algebra','equation','function','prime','modular','combinatorics','permutation','eigenvalue','statistics','proof'],
+  food:   ['food','pizza','sushi','ramen','pasta','recipe','cook','eat','restaurant','dish','ingredient','flavor','spice','noodle','bread','croissant','taco','fish','rice','soup'],
+  sports: ['sport','basketball','football','tennis','chess','swim','game','play','score','team','athlete','competition','match','tournament','olympic','dribble','tackle','serve']
+};
+
+function textToEmbedding(text) {
+  const t = text.toLowerCase(), ws = t.split(/\s+/);
+  const s = {cs:0,math:0,food:0,sports:0};
+  for (const w of ws)
+    for (const [cat, kws] of Object.entries(KW))
+      for (const kw of kws) if (w.includes(kw)||kw.startsWith(w)) { s[cat]+=0.35; break; }
+  const mx = Math.max(...Object.values(s), 0.01);
+  const n = v => Math.min(v/mx*0.88, 0.94);
+  const emb = new Array(16).fill(0.08);
+  const fill = (i,score) => {
+    if (score<.01) return;
+    const b = n(score);
+    // Fixed feature profile: same text always produces the same illustrative
+    // vector, so index comparisons and screenshots are reproducible.
+    emb[i]=b; emb[i+1]=b*.96; emb[i+2]=b*.92; emb[i+3]=b*.87;
+  };
+  fill(0,s.cs); fill(4,s.math); fill(8,s.food); fill(12,s.sports);
+  return emb;
+}
+
+// ════════════════════════════════════════════════════════════
+//  PCA
+// ════════════════════════════════════════════════════════════
+function pca2D(embs) {
+  const n = embs.length, d = embs[0].length;
+  if (n < 2) return embs.map(() => [0,0]);
+  const mean = new Array(d).fill(0);
+  for (const e of embs) for (let i=0;i<d;i++) mean[i]+=e[i]/n;
+  const X = embs.map(e => e.map((v,i)=>v-mean[i]));
+  function powerIter(X,excl) {
+    let v = new Array(d).fill(0).map((_,i)=>Math.sin((i+1)*12.9898+0.731));
+    if (excl) { let dot=v.reduce((s,vi,i)=>s+vi*excl[i],0); v=v.map((vi,i)=>vi-dot*excl[i]); }
+    let nrm = Math.sqrt(v.reduce((s,vi)=>s+vi*vi,0));
+    v = v.map(vi=>vi/nrm);
+    for (let it=0;it<200;it++) {
+      const Xv=X.map(xi=>xi.reduce((s,xij,j)=>s+xij*v[j],0));
+      const nv=new Array(d).fill(0);
+      for (let k=0;k<n;k++) for (let j=0;j<d;j++) nv[j]+=X[k][j]*Xv[k];
+      if (excl) { let dot=nv.reduce((s,vi,i)=>s+vi*excl[i],0); for (let i=0;i<d;i++) nv[i]-=dot*excl[i]; }
+      nrm=Math.sqrt(nv.reduce((s,vi)=>s+vi*vi,0));
+      if (nrm<1e-10) break;
+      const prev=v.slice(); v=nv.map(vi=>vi/nrm);
+      if (v.reduce((s,vi,i)=>s+(vi-prev[i])**2,0)<1e-12) break;
+    }
+    return v;
+  }
+  const pc1=powerIter(X,null), pc2=powerIter(X,pc1);
+  return X.map(x=>[x.reduce((s,v,i)=>s+v*pc1[i],0),x.reduce((s,v,i)=>s+v*pc2[i],0)]);
+}
+
+// ════════════════════════════════════════════════════════════
+//  SCATTER PLOT
+// ════════════════════════════════════════════════════════════
+const sc=document.getElementById('scatter'), ctx=sc.getContext('2d');
+let bounds={minX:-1,maxX:1,minY:-1,maxY:1};
+
+function resize() { const r=sc.parentElement.getBoundingClientRect(); sc.width=r.width; sc.height=r.height; }
+window.addEventListener('resize', resize);
+
+function w2c(wx,wy) {
+  const P=70,W=sc.width,H=sc.height,rx=bounds.maxX-bounds.minX||1,ry=bounds.maxY-bounds.minY||1;
+  return [P+((wx-bounds.minX)/rx)*(W-2*P), H-P-((wy-bounds.minY)/ry)*(H-2*P)];
+}
+
+function drawFrame() {
+  ctx.clearRect(0,0,sc.width,sc.height);
+  ctx.fillStyle='#0a101c'; ctx.fillRect(0,0,sc.width,sc.height);
+  ctx.strokeStyle='#0e0e1e'; ctx.lineWidth=1;
+  for (let i=0;i<=8;i++) {
+    const tx=70+(i/8)*(sc.width-140),ty=70+(i/8)*(sc.height-140);
+    ctx.beginPath();ctx.moveTo(tx,70);ctx.lineTo(tx,sc.height-70);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(70,ty);ctx.lineTo(sc.width-70,ty);ctx.stroke();
+  }
+  ctx.fillStyle='#8290a9'; ctx.font='11px Fira Code,monospace';
+  ctx.fillText('PC₁ →',sc.width/2-40,sc.height-18);
+  ctx.save();ctx.translate(18,sc.height/2+50);ctx.rotate(-Math.PI/2);ctx.fillText('PC₂ →',0,0);ctx.restore();
+  ctx.fillStyle='#a7b4ca'; ctx.font='12px Fira Code,monospace';
+  ctx.fillText('2D PCA Projection · 16D Demo Vectors',80,28);
+
+  if (queryPt && hitIds.size>0) {
+    const [qx,qy]=w2c(queryPt.x,queryPt.y);
+    for (const pt of pcaPoints) {
+      if (!hitIds.has(pt.item.id)) continue;
+      const [px,py]=w2c(pt.x,pt.y);
+      ctx.strokeStyle='rgba(108,99,255,0.18)'; ctx.lineWidth=1; ctx.setLineDash([4,4]);
+      ctx.beginPath();ctx.moveTo(qx,qy);ctx.lineTo(px,py);ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+  for (const pt of pcaPoints) {
+    const [cx,cy]=w2c(pt.x,pt.y);
+    const col=COL[pt.item.category]||COL.default;
+    const isHit=hitIds.has(pt.item.id), r=isHit?10:7;
+    if (isHit) {
+      const pr=r+7+Math.sin(pulse)*3.5;
+      ctx.beginPath();ctx.arc(cx,cy,pr,0,2*Math.PI);
+      ctx.strokeStyle=col+'55';ctx.lineWidth=1.5;ctx.stroke();
+    }
+    const grd=ctx.createRadialGradient(cx,cy,0,cx,cy,r*3);
+    grd.addColorStop(0,col+(isHit?'bb':'88'));grd.addColorStop(1,'transparent');
+    ctx.beginPath();ctx.arc(cx,cy,r*3,0,2*Math.PI);ctx.fillStyle=grd;ctx.fill();
+    ctx.beginPath();ctx.arc(cx,cy,r,0,2*Math.PI);ctx.fillStyle=col;ctx.fill();
+    if (hoverItem&&hoverItem.id===pt.item.id) {
+      ctx.beginPath();ctx.arc(cx,cy,r+5,0,2*Math.PI);ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.stroke();
+    }
+  }
+  if (queryPt) {
+    const [qx,qy]=w2c(queryPt.x,queryPt.y);
+    ctx.save();ctx.translate(qx,qy);
+    ctx.shadowColor='#fff';ctx.shadowBlur=18;
+    ctx.beginPath();
+    for (let i=0;i<10;i++){const a=(i*Math.PI/5)-Math.PI/2,rr=i%2===0?13:5;if(i===0)ctx.moveTo(Math.cos(a)*rr,Math.sin(a)*rr);else ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);}
+    ctx.closePath();ctx.fillStyle='#fff';ctx.fill();
+    ctx.shadowBlur=0;ctx.restore();
+    ctx.fillStyle='#aaaacc';ctx.font='10px Fira Code,monospace';ctx.fillText('query',qx+16,qy+4);
+  }
+  if (!pcaPoints.length) {
+    ctx.fillStyle='#1a1a38';ctx.font='13px Fira Code,monospace';ctx.textAlign='center';
+    ctx.fillText('Connecting to VectorVault…',sc.width/2,sc.height/2);ctx.textAlign='left';
+  }
+  pulse+=0.05;
+  requestAnimationFrame(drawFrame);
+}
+
+sc.addEventListener('mousemove', e => {
+  const rect=sc.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  hoverItem=null; let best=18;
+  for (const pt of pcaPoints) {
+    const [cx,cy]=w2c(pt.x,pt.y),d=Math.hypot(mx-cx,my-cy);
+    if (d<best){best=d;hoverItem=pt.item;}
+  }
+  const tip=document.getElementById('tip');
+  if (hoverItem) {
+    const col=COL[hoverItem.category]||COL.default;
+    tip.style.display='block';tip.style.left=(e.clientX+14)+'px';tip.style.top=(e.clientY-8)+'px';
+    tip.innerHTML=`<span style="color:${col}">[${escapeHtml(hoverItem.category)}]</span><br>${escapeHtml(hoverItem.metadata)}`;
+  } else tip.style.display='none';
+});
+sc.addEventListener('mouseleave',()=>{hoverItem=null;document.getElementById('tip').style.display='none';});
+
+// ════════════════════════════════════════════════════════════
+//  LOAD DEMO ITEMS
+// ════════════════════════════════════════════════════════════
+async function loadItems() {
+  try {
+    allItems = await requestJson('/items');
+    if (allItems.length >= 2) {
+      const coords = pca2D(allItems.map(v=>v.embedding));
+      pcaPoints = allItems.map((item,i)=>({x:coords[i][0],y:coords[i][1],item}));
+      let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+      for (const p of pcaPoints){x0=Math.min(x0,p.x);x1=Math.max(x1,p.x);y0=Math.min(y0,p.y);y1=Math.max(y1,p.y);}
+      const px=(x1-x0)*.18||.1,py=(y1-y0)*.18||.1;
+      bounds={minX:x0-px,maxX:x1+px,minY:y0-py,maxY:y1+py};
+    }
+    document.getElementById('statsLabel').textContent=allItems.length+' vectors · '+DIMS+' dims';
+  } catch(e) {
+    document.getElementById('statsLabel').textContent='backend offline';
+    document.getElementById('searchStatus').textContent='Start the backend with run.bat / ./run.sh, then refresh this page.';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  DEMO SEARCH
+// ════════════════════════════════════════════════════════════
+function setAlgo(el) {
+  document.querySelectorAll('.algo-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on'); selAlgo=el.dataset.algo;
+}
+
+async function runSearch() {
+  const text=document.getElementById('qInput').value.trim(); if(!text)return;
+  const emb=textToEmbedding(text),k=parseInt(document.getElementById('kSlider').value);
+  lastQueryEmbedding=emb;
+  const metric=document.getElementById('metric').value;
+  const url=`${API}/search?v=${emb.join(',')}&k=${k}&metric=${metric}&algo=${selAlgo}`;
+  const btn=document.getElementById('searchBtn'),status=document.getElementById('searchStatus');
+  btn.disabled=true;btn.textContent='Searching…';status.textContent='Querying the selected index…';
+  try {
+    const data=await requestJson(url.replace(API,''));
+    searchResults=data.results||[]; hitIds=new Set(searchResults.map(r=>r.id)); lastSearchMetric=metric;
+    const us=data.latencyUs||0;
+    document.getElementById('latBig').textContent=us<1000?us+' μs':(us/1000).toFixed(2)+' ms';
+    document.getElementById('latSub').textContent=(data.algo||selAlgo).toUpperCase()+'  ·  '+metric+'  ·  k='+k+'  ·  '+(data.exact?'EXACT':'APPROXIMATE');
+    status.textContent=data.note||'Search completed successfully.';
+    if (searchResults.length>0){
+      let sx=0,sy=0,sw=0;
+      for (let i=0;i<Math.min(3,searchResults.length);i++){
+        const pt=pcaPoints.find(p=>p.item.id===searchResults[i].id);
+        if(pt){const w=1/(i+1);sx+=pt.x*w;sy+=pt.y*w;sw+=w;}
+      }
+      if(sw>0)queryPt={x:sx/sw,y:sy/sw};
+    }
+    renderResults(searchResults); drawVecChart(emb);
+  } catch(e){status.textContent='Search failed: '+e.message;document.getElementById('latSub').textContent='No successful query yet';}
+  finally {btn.disabled=false;btn.textContent='⌕ RUN VECTOR SEARCH';}
+}
+
+document.getElementById('qInput').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch();});
+
+function renderResults(results) {
+  if (!results||!results.length){document.getElementById('results').innerHTML='<div style="color:var(--muted);font-size:11px">No results</div>';return;}
+  document.getElementById('results').innerHTML=results.map((r,i)=>{
+    const col=COL[r.category]||COL.default;
+    const distance=Number(r.distance);
+    const similarity=Number.isFinite(Number(r.cosineSimilarity))?Number(r.cosineSimilarity):1-distance;
+    const scoreText=lastSearchMetric==='cosine'?'cos sim: '+similarity.toFixed(5):'dist: '+distance.toFixed(5);
+    return `<div class="rcard" onmouseenter="hoverItem={id:${r.id}}" onmouseleave="hoverItem=null">
+      <div class="rrank">#${i+1} NEAREST</div>
+      <div class="rmeta">${escapeHtml(r.metadata)}</div>
+      <div class="rfoot">
+        <span class="rcat" style="background:${col}18;color:${col};border:1px solid ${col}44">${escapeHtml(r.category).toUpperCase()}</span>
+        <span class="rdist">${scoreText}</span>
+        <button class="del" onclick="deleteItem(${r.id})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function drawVecChart(emb) {
+  const vc=document.getElementById('vecCvs'),W=vc.parentElement.clientWidth;
+  vc.width=W;const vx=vc.getContext('2d');
+  vx.clearRect(0,0,W,76);vx.fillStyle='#07070f';vx.fillRect(0,0,W,76);
+  const bw=(W-4)/DIMS;
+  for (let i=0;i<DIMS;i++){
+    const h=emb[i]*58,x=2+i*bw,col=DIM_COL[i];
+    vx.shadowColor=col;vx.shadowBlur=5;vx.fillStyle=col+'aa';vx.fillRect(x+1,63-h,bw-2,h);
+  }
+  vx.shadowBlur=0;vx.font='8px monospace';vx.textAlign='center';
+  [['CS',0],['MATH',4],['FOOD',8],['SPORT',12]].forEach(([lbl,gi],i)=>{
+    vx.fillStyle=Object.values(COL)[i]+'77';vx.fillText(lbl,2+(gi+1.5)*bw,74);
+  });
+  vx.textAlign='left';
+}
+
+async function runBenchmark() {
+  const text=document.getElementById('qInput').value.trim()||'binary tree algorithm';
+  const emb=textToEmbedding(text),metric=document.getElementById('metric').value;
+  try {
+    const d=await requestJson(`/benchmark?v=${emb.join(',')}&k=5&metric=${metric}`);
+    document.getElementById('benchSec').style.display='block';
+    const mx=Math.max(d.bruteforceUs,d.kdtreeUs,d.hnswUs,1);
+    document.getElementById('benchBars').innerHTML=[
+      {lbl:'Brute Force',us:d.bruteforceUs,col:'#f38ba8'},
+      {lbl:d.kdCosineFallback?'KD-Tree*':'KD-Tree',    us:d.kdtreeUs,    col:'#89dceb'},
+      {lbl:'HNSW',       us:d.hnswUs,      col:'#b388ff'},
+    ].map(({lbl,us,col})=>{
+      const pct=Math.max((us/mx)*100,2),disp=us<1000?us+' μs':(us/1000).toFixed(2)+' ms';
+      return `<div class="brow"><div class="blabel"><span style="color:${col}">${lbl}</span><span style="color:var(--muted)">${disp}</span></div><div class="btrack"><div class="bfill" style="width:${pct}%;background:${col}"></div></div></div>`;
+    }).join('');
+    const meta=document.getElementById('benchMeta');
+    if(meta)meta.textContent=`${d.itemCount} vectors · HNSW recall@5 ${(100*d.hnswRecallAtK).toFixed(1)}%${d.kdCosineFallback?' · *Cosine uses exact Brute Force fallback for KD-tree':''}. Small demo datasets may not show an HNSW speed advantage.`;
+  } catch(e) {const meta=document.getElementById('benchMeta');if(meta)meta.textContent='Benchmark failed: '+e.message;}
+}
+
+async function loadHNSW() {
+  try {
+    const d=await requestJson('/hnsw-info');
+    const maxN=d.nodesPerLayer[0]||1;
+    document.getElementById('layers').innerHTML=d.nodesPerLayer.map((cnt,lyr)=>{
+      const pct=Math.max((cnt/maxN)*100,2),edg=d.edgesPerLayer[lyr]||0;
+      return `<div class="lrow"><div class="lnum">L${lyr}</div><div class="ltrack"><div class="lfill" style="width:${pct}%"></div></div><div class="lcount">${cnt}n · ${edg}e</div></div>`;
+    }).join('')||'<div style="color:var(--muted);font-size:11px">Empty</div>';
+  } catch(_) {}
+}
+
+async function addVector() {
+  const meta=document.getElementById('addMeta').value.trim(),cat=document.getElementById('addCat').value;
+  const status=document.getElementById('vectorInsertStatus');
+  if(!meta){status.textContent='Enter a description for the vector first.';return;}
+  const emb=textToEmbedding(meta+' '+cat);
+  status.textContent='Inserting vector and updating indexes…';
+  try {
+    await requestJson('/insert',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({metadata:meta,category:cat,embedding:emb})});
+    document.getElementById('addMeta').value='';
+    await loadItems();await loadHNSW();
+    status.textContent='Vector inserted into Brute Force, KD-tree, and all three metric-specific HNSW indexes.';
+  } catch(e) {status.textContent='Insert failed: '+e.message;}
+}
+
+async function deleteItem(id) {
+  try {
+    await requestJson(`/delete/${id}`,{method:'DELETE'});
+    searchResults=searchResults.filter(r=>r.id!==id);hitIds.delete(id);
+    renderResults(searchResults);await loadItems();loadHNSW();
+    document.getElementById('searchStatus').textContent='Vector deleted from every index and persisted to disk.';
+  } catch(e) {document.getElementById('searchStatus').textContent='Delete failed: '+e.message;}
+}
+
+// ════════════════════════════════════════════════════════════
+//  DOCUMENT MANAGEMENT
+// ════════════════════════════════════════════════════════════
+async function checkOllamaStatus() {
+  try {
+    const d=await requestJson('/status');
+    const badge=document.getElementById('ollamaBadge');
+    const box=document.getElementById('ollamaStatus');
+    if (d.ollamaAvailable) {
+      const ready=d.embedModelAvailable&&d.genModelAvailable;
+      badge.className='badge '+(ready?'ok':'hl'); badge.textContent=ready?'OLLAMA READY':'OLLAMA MODELS';
+      box.className='ollama-status '+(ready?'ok':'');
+      box.innerHTML=`<span style="color:var(--green)">● Endpoint online</span><br>`+
+        `Embed: <span style="color:${d.embedModelAvailable?'var(--green)':'var(--red)'}">${escapeHtml(d.embedModel)} ${d.embedModelAvailable?'✓':'— missing'}</span><br>`+
+        `Generate: <span style="color:${d.genModelAvailable?'var(--green)':'var(--red)'}">${escapeHtml(d.genModel)} ${d.genModelAvailable?'✓':'— missing'}</span><br>`+
+        `Embedding dimensions: <span style="color:var(--muted)">${d.docDims||'detected on first source'}</span><br>`+
+        `Indexed chunks: <span style="color:var(--text)">${d.docCount}</span>`+
+        (ready?'':`<br><span style="color:var(--muted)">Install missing models using the setup commands in README.md.</span>`);
+    } else {
+      badge.className='badge err'; badge.textContent='OLLAMA ✗';
+      box.className='ollama-status err';
+      box.innerHTML=`<span style="color:var(--red)">● Offline</span><br><br>`+
+        `To enable RAG features:<br>`+
+        `<span style="color:var(--muted)">1. Install from ollama.com<br>`+
+        `2. ollama pull nomic-embed-text<br>`+
+        `3. ollama pull llama3.2</span>`;
+    }
+  } catch(e) {
+    const badge=document.getElementById('ollamaBadge');badge.className='badge err';badge.textContent='BACKEND OFFLINE';
+    const box=document.getElementById('ollamaStatus');box.className='ollama-status err';
+    box.textContent='Cannot reach VectorVault API. Start the Java backend and refresh.';
+  }
+}
+
+async function insertDocument() {
+  const title=document.getElementById('docTitle').value.trim();
+  const text=document.getElementById('docText').value.trim();
+  const btn=document.getElementById('insertDocBtn');
+  const status=document.getElementById('insertStatus');
+  if(!title||!text){status.textContent='⚠ Need both a title and text.';return;}
+
+  btn.disabled=true; btn.textContent='Embedding source…';
+  status.innerHTML='<span style="color:var(--muted)">Calling Ollama nomic-embed-text…</span>';
+
+  try {
+    const d=await requestJson('/doc/insert',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title,text})
+    });
+    status.innerHTML=`<span style="color:var(--green)">✓ Indexed ${d.chunks} chunk(s) · ${d.dims}D real embeddings · IDs ${d.ids.join(', ')}</span>`;
+    document.getElementById('docTitle').value='';
+    document.getElementById('docText').value='';
+    await loadDocList(); await checkOllamaStatus();
+  } catch(e) {
+    status.innerHTML=`<span style="color:var(--red)">✗ ${escapeHtml(e.message)}</span>`;
+  } finally {
+    btn.disabled=false; btn.textContent='✦ EMBED & INDEX SOURCE';
+  }
+}
+
+async function loadDocList() {
+  try {
+    const docs=await requestJson('/doc/list');
+    document.getElementById('docCountLabel').textContent=docs.length;
+    if (!docs.length) {
+      document.getElementById('docList').innerHTML='<div style="color:var(--muted);font-size:11px">No chunks indexed yet. Add a source above to begin.</div>';
+      return;
+    }
+    document.getElementById('docList').innerHTML=docs.map(d=>`
+      <div class="dcard">
+        <div class="dcard-title">${escapeHtml(d.title)}</div>
+        <div class="dcard-preview">${escapeHtml(d.preview)}</div>
+        <div class="dcard-foot">
+          <span class="dcard-words">${d.words} words · ${d.dimensions}D</span>
+          <button class="del" aria-label="Delete chunk ${d.id}" title="Delete chunk" onclick="deleteDoc(${d.id})">✕</button>
+        </div>
+      </div>`).join('');
+  } catch(e) {document.getElementById('docList').innerHTML=`<div class="inline-status">Could not load chunks: ${escapeHtml(e.message)}</div>`;}
+}
+
+async function deleteDoc(id) {
+  try {
+    await requestJson(`/doc/delete/${id}`,{method:'DELETE'});
+    await loadDocList(); await checkOllamaStatus();
+  } catch(e) {document.getElementById('insertStatus').textContent='Delete failed: '+e.message;}
+}
+
+// ════════════════════════════════════════════════════════════
+//  RAG  — Ask AI
+// ════════════════════════════════════════════════════════════
+document.getElementById('ragQuestion').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&e.ctrlKey)askAI();
+});
+
+async function askAI() {
+  const question=document.getElementById('ragQuestion').value.trim();
+  if(!question)return;
+  const k=parseInt(document.getElementById('ragK').value);
+  const algo=document.getElementById('ragAlgo').value;
+  const metric=document.getElementById('ragMetric').value;
+  const btn=document.getElementById('askBtn');
+  const history=document.getElementById('chatHistory');
+  const turn=++chatTurn;
+  if(turn===1)history.innerHTML='';
+  btn.disabled=true;btn.textContent='Retrieving…';
+
+  const qDiv=document.createElement('div');qDiv.className='chat-q';qDiv.textContent=question;history.appendChild(qDiv);
+  const thinkDiv=document.createElement('div');thinkDiv.className='thinking';
+  thinkDiv.innerHTML='<div class="spinner"></div>Embedding question · retrieving chunks · generating grounded answer…';
+  history.appendChild(thinkDiv);history.scrollTop=history.scrollHeight;
+
+  try {
+    const d=await requestJson('/doc/ask',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({question,k,algo,metric})
+    });
+    thinkDiv.remove();
+    const aDiv=document.createElement('div');aDiv.className='chat-a';
+    const answer=String(d.answer||'No answer was returned.');
+    const contexts=Array.isArray(d.contexts)?d.contexts:[];
+
+    if(answer.startsWith('ERROR:')) {
+      aDiv.innerHTML=`<div class="chat-a-label" style="color:var(--red)">MODEL ERROR</div><div class="chat-a-text" style="color:var(--red)">${escapeHtml(answer)}</div>`;
+      history.appendChild(aDiv);
+    } else {
+      const turnContext=contexts.map((c,i)=>{
+        const ctxId=`ctx-${turn}-${i}`;
+        const distance=Number(c.distance);
+        const similarity=Number.isFinite(Number(c.cosineSimilarity))?Number(c.cosineSimilarity):1-distance;
+        const score=metric==='cosine'?(Number.isFinite(similarity)?'sim '+similarity.toFixed(3):'sim n/a'):(Number.isFinite(distance)?'dist '+distance.toFixed(3):'dist n/a');
+        return `<span class="ctx-chip" role="button" tabindex="0" onclick="toggleCtx('${ctxId}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCtx('${ctxId}')} ">#${i+1} ${escapeHtml(c.title)} · ${score}</span>`+
+          `<div class="ctx-expand" id="${ctxId}">${escapeHtml(c.text||'')}</div>`;
+      }).join('');
+      const retrievalNote=String(d.note|| (d.exact?'Exact nearest-neighbor retrieval.':'Approximate nearest-neighbor retrieval.'));
+      const embeddingMs=Number(d.embeddingMs), retrievalMs=Number(d.retrievalMs);
+      const latencyLabel=`Embedding ${Number.isFinite(embeddingMs)?embeddingMs.toFixed(1):'—'} ms · Retrieval ${Number.isFinite(retrievalMs)?retrievalMs.toFixed(2):'—'} ms`;
+      aDiv.innerHTML=`<div class="chat-a-label">✦ ${escapeHtml(d.model||'Ollama')} · RAG ANSWER</div>`+
+        `<div class="chat-a-text" id="typeTarget-${turn}"></div>`+
+        `<div class="chat-ctx"><div class="chat-ctx-label">RETRIEVED CONTEXT (${contexts.length} chunks) · ${escapeHtml(algo.toUpperCase())} / ${escapeHtml(metric.toUpperCase())}</div>`+
+          `<div class="hint">${escapeHtml(retrievalNote)} · ${escapeHtml(latencyLabel)}</div>`+
+          (turnContext||'<div class="hint">No indexed chunks were retrieved for this question.</div>')+
+        `</div>`;
+      history.appendChild(aDiv);
+      const target=aDiv.querySelector(`#typeTarget-${turn}`);
+      target.classList.add('typing');
+      let offset=0;
+      const timer=setInterval(()=>{
+        if(offset>=answer.length){clearInterval(timer);target.classList.remove('typing');return;}
+        target.textContent+=answer.slice(offset,offset+3);offset+=3;history.scrollTop=history.scrollHeight;
+      },18);
+    }
+  } catch(e) {
+    thinkDiv.remove();
+    const err=document.createElement('div');err.className='chat-a';
+    err.innerHTML=`<div class="chat-a-label" style="color:var(--red)">REQUEST ERROR</div><div class="chat-a-text" style="color:var(--red)">${escapeHtml(e.message)}</div>`;
+    history.appendChild(err);
+  } finally {
+    document.getElementById('ragQuestion').value='';
+    btn.disabled=false;btn.textContent='✦ ASK VECTORVAULT';history.scrollTop=history.scrollHeight;
+  }
+}
+
+function toggleCtx(id) {
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.style.display=el.style.display==='block'?'none':'block';
+}
+
+// ════════════════════════════════════════════════════════════
+//  BOOT
+// ════════════════════════════════════════════════════════════
+resize(); drawFrame();
+window.addEventListener('resize',()=>{resize();if(lastQueryEmbedding)drawVecChart(lastQueryEmbedding);});
+loadItems().then(loadHNSW);
+checkOllamaStatus();loadDocList();
+</script>
+</body>
+</html>

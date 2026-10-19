@@ -1,0 +1,28 @@
+﻿# Build and test artifacts
+out/
+out-test/
+*.class
+.sources.list
+*.tmp
+
+# IDE and operating system
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs and local secrets
+*.log
+.env
+.env.*
+
+# Local runtime data
+data/*
+!data/.gitkeep
+
+# HTML editing backups
+index.html.backup
+index.html.before-favicon
+index.html.before-premium-logo
+index.html.logo-backup
+index.html.prelogo-backup

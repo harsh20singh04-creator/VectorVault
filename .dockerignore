@@ -1,0 +1,9 @@
+.git
+.vscode
+.idea
+out
+out-test
+*.class
+*.log
+data
+*.zip
